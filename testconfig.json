@@ -1,0 +1,13 @@
+{
+  "codeCoverage": {
+    "Configuration": {
+      "CodeCoverage": {
+        "Sources": {
+          "Exclude": [
+            ".*RegexGenerator\\.g\\.cs$"
+          ]
+        }
+      }
+    }
+  }
+}

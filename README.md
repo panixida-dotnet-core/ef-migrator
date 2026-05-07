@@ -1,166 +1,162 @@
-## What to do after creating a repository from this template
+# PANiXiDA.Core.Ef.Migrator
 
-### 1. Rename repository metadata
-- change repository name
-- change solution / project names
-- change package ID
-- change assembly name
-- change repository URLs
-- change ProjectReference in test project
+`PANiXiDA.Core.Ef.Migrator` is a .NET library for automatically creating and applying Entity Framework Core migrations when an application starts.
 
-### 2. Update package metadata
-- description
-- tags
-
-### 3. Update documentation
-- replace this template README with the project README
-- fill all placeholder sections
-- update badges
-- update installation instructions
-- add real usage examples
-
-### 4. Configure GitHub repository
-- check repository visibility
-- configure default branch
-- configure branch protection rules
-- configure Issues / Discussions if needed
-- configure repository description, topics and website
-
-### 5. Prepare the first release
-- update versioning configuration pathFilters in version.json
-- verify NuGet metadata
-- verify README and icon inside the package
-- publish the first package version
-- the version is updated automatically based on the commit history
-
----
-
-# Universal README template for the NuGet package
-
-# <PackageName>
-
-`<PackageName>` is a .NET library for <short purpose>.
-
-It is designed for <target audience> who need <main value / main scenario>.
+It is designed for services that use PostgreSQL with EF Core and need a controlled startup-time migration flow for development, test, or managed deployment scenarios.
 
 ## Status
 
-[![CI](https://github.com/<OWNER>/<REPOSITORY>/actions/workflows/ci.yml/badge.svg)](https://github.com/<OWNER>/<REPOSITORY>/actions/workflows/ci.yml)
-[![NuGet](https://img.shields.io/nuget/v/<PACKAGE_ID>.svg)](https://www.nuget.org/packages/<PACKAGE_ID>)
-[![NuGet downloads](https://img.shields.io/nuget/dt/<PACKAGE_ID>.svg)](https://www.nuget.org/packages/<PACKAGE_ID>)
+[![CI](https://github.com/panixida-dotnet-core/ef-migrator/actions/workflows/ci.yml/badge.svg)](https://github.com/panixida-dotnet-core/ef-migrator/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/PANiXiDA.Core.Ef.Migrator.svg)](https://www.nuget.org/packages/PANiXiDA.Core.Ef.Migrator)
+[![NuGet downloads](https://img.shields.io/nuget/dt/PANiXiDA.Core.Ef.Migrator.svg)](https://www.nuget.org/packages/PANiXiDA.Core.Ef.Migrator)
 [![Target Framework](https://img.shields.io/badge/target-net10.0-512BD4)](https://dotnet.microsoft.com/)
-[![License](https://img.shields.io/github/license/<OWNER>/<REPOSITORY>.svg)](LICENSE)
+[![License](https://img.shields.io/github/license/panixida-dotnet-core/ef-migrator.svg)](LICENSE)
 
 ## Overview
 
-Describe:
+The package extends `IHostBuilder` with a migration startup step. It builds the host, resolves the configured `DbContext`, detects pending model changes, optionally scaffolds a new EF Core migration into the target project, and optionally applies existing and generated migrations to PostgreSQL.
 
-- what problem this package solves;
-- why it exists;
-- where it fits in the system or ecosystem;
-- how it differs from alternatives, if that matters.
-
-Keep this section short and practical.
+This package is intentionally small: the public entry point is `RunMigrationsAsync<TContext>()`, while generation and application behavior is controlled through configuration.
 
 ## Features
 
-- Feature 1
-- Feature 2
-- Feature 3
-- Feature 4
-- Feature 5
+- Detects differences between the current `DbContext` model and the latest model snapshot.
+- Generates migration files into a configured project directory.
+- Applies compiled pending migrations.
+- Applies a newly generated migration in the same startup flow.
+- Supports disabling generation and applying independently.
+- Uses PostgreSQL through `Npgsql.EntityFrameworkCore.PostgreSQL`.
 
 ## Quick Start
 
 ### Requirements
 
 - .NET 10 SDK
+- Entity Framework Core 10
+- PostgreSQL
 
 ### Installation
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="<PACKAGE_ID>" Version="..." />
+  <PackageReference Include="PANiXiDA.Core.Ef.Migrator" Version="1.0.1" />
 </ItemGroup>
-````
+```
 
 ### Minimal import
 
 ```csharp
-using <RootNamespace>;
+using PANiXiDA.Core.Ef.Migrator;
 ```
 
 ### First example
 
 ```csharp
-// Add a minimal example here
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
+using PANiXiDA.Core.Ef.Migrator;
+
+var builder = Host
+    .CreateDefaultBuilder(args)
+    .ConfigureServices((context, services) =>
+    {
+        services.AddDbContext<AppDbContext>(options =>
+        {
+            options.UseNpgsql(
+                context.Configuration["PostgreSqlConnectionString"],
+                npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
+        });
+    });
+
+using var host = await builder.RunMigrationsAsync<AppDbContext>();
+await host.RunAsync();
 ```
 
 ## Usage
 
-### Basic usage
+### Configuration
 
-```csharp
-// Add a basic example here
+The migration flow is controlled by these configuration values:
+
+| Key | Required | Default | Description |
+| --- | --- | --- | --- |
+| `GenerateMigrations` | No | `true` | Enables creating a migration when the model differs from the latest snapshot. |
+| `ApplyMigrations` | No | `true` | Enables applying compiled pending migrations and the newly generated migration. |
+| `Ef:ProjectPath` | Yes, when generation is enabled and differences exist | None | Absolute or relative path to the project where migration files should be written. |
+| `Ef:MigrationsDirectory` | Yes, when generation is enabled and differences exist | None | Migration output directory inside `Ef:ProjectPath`. |
+
+Example `appsettings.json`:
+
+```json
+{
+  "GenerateMigrations": true,
+  "ApplyMigrations": true,
+  "Ef": {
+    "ProjectPath": ".",
+    "MigrationsDirectory": "Data/Migrations"
+  },
+  "PostgreSqlConnectionString": "Host=localhost;Database=app;Username=app;Password=app"
+}
 ```
 
-### Typical scenario
+### Generate but do not apply
 
-```csharp
-// Add a realistic example here
+```json
+{
+  "GenerateMigrations": true,
+  "ApplyMigrations": false,
+  "Ef": {
+    "ProjectPath": ".",
+    "MigrationsDirectory": "Data/Migrations"
+  }
+}
 ```
 
-### Advanced scenario
+### Apply existing migrations only
 
-```csharp
-// Add an advanced example here if needed
+```json
+{
+  "GenerateMigrations": false,
+  "ApplyMigrations": true
+}
 ```
 
-## Configuration
+### Disable startup migrations
 
-Describe configuration only if the package actually requires it.
+```json
+{
+  "GenerateMigrations": false,
+  "ApplyMigrations": false
+}
+```
 
-Possible topics:
+## Behavior Notes
 
-* environment variables;
-* `appsettings.json`;
-* feature flags;
-* external services;
-* secrets;
-* runtime prerequisites.
-
-If the package does not require runtime configuration, say so explicitly.
+- `RunMigrationsAsync<TContext>()` returns the built `IHost`.
+- When generation is disabled and applying is enabled, only compiled pending migrations are applied.
+- When generation is enabled but there are no model differences, the package applies compiled migrations with EF Core `MigrateAsync()` if applying is enabled.
+- When generation and applying are both disabled, the host is built and returned without migration work.
+- `Ef:MigrationsDirectory` must point to a directory inside `Ef:ProjectPath`.
 
 ## Project Structure
 
 ```text
 .
-├── src/
-│   └── <ProjectName>/
-├── tests/
-│   └── <ProjectName>.UnitTests/
-├── .editorconfig
-├── .gitattributes
-├── .gitignore
-├── Directory.Build.props
-├── Directory.Build.targets
-├── Directory.Packages.props
-├── global.json
-├── version.json
-├── LICENSE
-└── README.md
+|-- src/
+|   `-- PANiXiDA.Core.Ef.Migrator/
+|-- tests/
+|   `-- PANiXiDA.Core.Ef.Migrator.IntegrationTests/
+|-- .github/
+|   `-- workflows/
+|       `-- ci.yml
+|-- Directory.Build.props
+|-- Directory.Build.targets
+|-- Directory.Packages.props
+|-- global.json
+|-- version.json
+|-- LICENSE
+`-- README.md
 ```
-
-### Main repository files
-
-* `src/` — source code
-* `tests/` — automated tests
-* `Directory.Build.props` — shared MSBuild settings
-* `Directory.Build.targets` — shared build / packaging settings
-* `Directory.Packages.props` — centralized package versions
-* `global.json` — SDK and tooling configuration
-* `version.json` — versioning configuration
-* `README.md` — package overview and usage documentation
 
 ## Development
 
@@ -183,6 +179,8 @@ dotnet format
 dotnet test --configuration Release
 ```
 
+Integration tests use Testcontainers and require a working Docker environment.
+
 ### Pack
 
 ```bash
@@ -199,88 +197,29 @@ dotnet test --configuration Release
 dotnet pack --configuration Release
 ```
 
-### Tooling and conventions
+## Tooling and Conventions
 
 This repository uses:
 
-* .NET 10
-* Nullable enabled
-* Implicit usings enabled
-* Central package management
-* GitHub Actions
-* Nerdbank.GitVersioning
-
-Add more items only if they are actually relevant for the repository.
-
-## API / Contracts / Examples
-
-Describe the public API surface here.
-
-Suggested structure:
-
-* core abstractions;
-* main entry points;
-* key extension methods;
-* important behavioral notes;
-* typical integration examples.
-
-## Roadmap / TODO
-
-Potential future improvements:
-
-* item 1;
-* item 2;
-* item 3.
-
-Remove this section if it does not provide value.
-
-## Contributing
-
-Contributions are welcome.
-
-### General rules
-
-* keep the public API intentional;
-* avoid unnecessary dependencies;
-* preserve repository conventions;
-* do not introduce breaking changes without review;
-* keep documentation updated.
-
-### Code style
-
-* follow the repository `.editorconfig`;
-* prefer readable and explicit code;
-* keep naming consistent with the existing codebase.
-
-### Tests
-
-* add or update tests for meaningful behavior changes;
-* cover both success and failure scenarios where applicable;
-* add regression tests for bug fixes.
-
-### Validation before completion
-
-Run:
-
-```bash
-dotnet restore
-dotnet format
-dotnet build --configuration Release
-dotnet test --configuration Release
-```
+- .NET 10
+- Nullable enabled
+- Implicit usings enabled
+- Central package management
+- Microsoft Testing Platform
+- xUnit v3
+- FluentAssertions
+- Testcontainers for PostgreSQL integration tests
+- Nerdbank.GitVersioning
+- GitHub Actions
 
 ## License
 
-This project is licensed under the <LicenseName> license.
+This project is licensed under the Apache-2.0 license.
 
 See the [LICENSE](LICENSE) file for details.
 
-## Maintainers / Contacts
+## Maintainers
 
-Maintained by <Author / Team / Organization>.
+Maintained by PANiXiDA.
 
-For questions or improvements, use:
-
-* GitHub Issues
-* Pull Requests
-* GitHub Discussions, if enabled
+For questions or improvements, use GitHub Issues or Pull Requests.
