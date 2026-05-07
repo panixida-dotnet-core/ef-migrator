@@ -66,4 +66,15 @@ public sealed class MigrationsNameBuilderTests
         migrationName.Length.Should().BeLessThanOrEqualTo(134);
         migrationName.Should().MatchRegex("_[A-F0-9]{8}$");
     }
+
+    [Fact(DisplayName = "Removes trailing dots and spaces from operation name parts")]
+    public void BuildMigrationName_WhenOperationNamesHaveTrailingDotsAndSpaces_CleansName()
+    {
+        var operation = new RenameTableOperation { Name = "users", NewName = "renamed_users. " };
+
+        var migrationName = MigrationsNameBuilder.BuildMigrationName([operation]);
+
+        migrationName.Should().Contain("Rename_Table_users_To_renamed_users");
+        migrationName.Should().EndWith("renamed_users");
+    }
 }

@@ -19,4 +19,11 @@
         <Using Include="Xunit" />
         <Using Include="FluentAssertions" />
     </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\..\testconfig.json"
+              Link="testconfig.json"
+              CopyToOutputDirectory="PreserveNewest"
+              Visible="false" />
+    </ItemGroup>
 </Project>

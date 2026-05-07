@@ -13,6 +13,7 @@
     <File Path="icon.png" />
     <File Path="LICENSE" />
     <File Path="README.md" />
+    <File Path="testconfig.json" />
     <File Path="version.json" />
   </Folder>
   <Folder Name="/src/">

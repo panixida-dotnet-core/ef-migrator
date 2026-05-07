@@ -24,6 +24,20 @@ public sealed class MigrationGenerationOptionsProviderTests
         options.MigrationsSubNamespace.Should().Be("Data.Migrations");
     }
 
+    [Fact(DisplayName = "Uses the root namespace when the migrations directory is the project directory")]
+    public void Get_WhenMigrationsDirectoryIsProjectDirectory_ReturnsEmptySubNamespace()
+    {
+        using var project = new TempMigrationProject();
+        var configuration = CreateConfiguration(
+            ("Ef:ProjectPath", project.ProjectPath),
+            ("Ef:MigrationsDirectory", "."));
+
+        var options = MigrationGenerationOptionsProvider.Get<GeneratedMigrationDbContext>(configuration);
+
+        options.MigrationsDirectory.Should().Be(".");
+        options.MigrationsSubNamespace.Should().BeEmpty();
+    }
+
     [Fact(DisplayName = "Throws when configuration is null")]
     public void Get_WhenConfigurationIsNull_Throws()
     {

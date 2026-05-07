@@ -54,6 +54,25 @@ public sealed class MigrationsCreatorTests
         migrationText.Should().NotContain("namespace PANiXiDA.Core.Ef.Migrator.IntegrationTests.");
     }
 
+    [Fact(DisplayName = "Throws when the migration difference is null")]
+    public void CreateAndSaveMigration_WhenDifferenceIsNull_Throws()
+    {
+        using var db = new GeneratedMigrationDbContext(CreateOptions<GeneratedMigrationDbContext>());
+        using var designServiceProvider = EfDesignServices.Create(db);
+        using var project = new TempMigrationProject();
+
+        var act = () => MigrationsCreator.CreateAndSaveMigration(
+            designServiceProvider,
+            null!,
+            typeof(GeneratedMigrationDbContext),
+            rootNamespace: "PANiXiDA.Core.Ef.Migrator.IntegrationTests",
+            subNamespace: string.Empty,
+            project.ProjectPath,
+            project.MigrationsDirectory);
+
+        act.Should().Throw<ArgumentNullException>();
+    }
+
     private static DbContextOptions<TContext> CreateOptions<TContext>()
         where TContext : DbContext
     {
