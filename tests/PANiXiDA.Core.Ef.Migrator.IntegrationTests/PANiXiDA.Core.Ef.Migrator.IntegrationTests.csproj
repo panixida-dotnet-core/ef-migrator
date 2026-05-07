@@ -7,11 +7,12 @@
         <PackageReference Include="FluentAssertions" />
         <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
         <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+        <PackageReference Include="Testcontainers.PostgreSql" />
         <PackageReference Include="xunit.v3" />
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\PANiXiDA.Core.Template\PANiXiDA.Core.Template.csproj" />
+      <ProjectReference Include="..\..\src\PANiXiDA.Core.Ef.Migrator\PANiXiDA.Core.Ef.Migrator.csproj" />
     </ItemGroup>
 
     <ItemGroup>
