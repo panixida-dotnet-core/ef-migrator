@@ -8,9 +8,9 @@ namespace PANiXiDA.Core.Ef.Migrator.Extensions;
 
 internal static class MigrationsDifferenceProvider
 {
-    internal static MigrationsDifference GetDifferences<TContext>(
-        TContext db,
-        IServiceProvider designServiceProvider) where TContext : DbContext
+    internal static MigrationsDifference GetDifferences(
+        DbContext db,
+        IServiceProvider designServiceProvider)
     {
         var migrationsAssembly = db.GetService<IMigrationsAssembly>();
         var modelDiffer = db.GetService<IMigrationsModelDiffer>();

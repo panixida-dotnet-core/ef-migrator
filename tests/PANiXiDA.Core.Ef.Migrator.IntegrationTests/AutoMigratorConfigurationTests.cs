@@ -45,4 +45,53 @@ public sealed class AutoMigratorConfigurationTests
 
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
+
+    [Fact(DisplayName = "Runs migration generation for multiple configured DbContexts")]
+    public async Task RunMigrationsAsync_WithMultipleContexts_UsesContextGenerationConfiguration()
+    {
+        const string connectionString = "Host=localhost;Database=unused;Username=unused;Password=unused";
+        using var project = new TempMigrationProject("GeneratedMigrations");
+        var builder = TestHostBuilder.Create<ExistingMigrationDbContext, GeneratedMigrationDbContext>(
+            connectionString,
+            generateMigrations: true,
+            applyMigrations: false,
+            new Dictionary<string, string?>
+            {
+                ["Ef:Contexts:Generated:ProjectPath"] = project.ProjectPath,
+                ["Ef:Contexts:Generated:MigrationsDirectory"] = project.MigrationsDirectory
+            });
+
+        using var host = await builder.RunMigrationsAsync(
+            DbContextMigration.For<ExistingMigrationDbContext>("Existing"),
+            DbContextMigration.For<GeneratedMigrationDbContext>("Generated"));
+
+        var generatedFiles = project.GetGeneratedFiles();
+
+        generatedFiles.Should().HaveCount(3);
+        generatedFiles.Should().ContainSingle(path =>
+            path.EndsWith(".Designer.cs", StringComparison.Ordinal));
+        generatedFiles.Should().ContainSingle(path =>
+            path.EndsWith("ModelSnapshot.cs", StringComparison.Ordinal));
+        generatedFiles.Should().ContainSingle(path =>
+            !path.EndsWith(".Designer.cs", StringComparison.Ordinal) &&
+            !path.EndsWith("ModelSnapshot.cs", StringComparison.Ordinal));
+    }
+
+    [Fact(DisplayName = "Rejects duplicate DbContexts in a multi-context migration run")]
+    public async Task RunMigrationsAsync_WithDuplicateContexts_Throws()
+    {
+        const string connectionString = "Host=localhost;Database=unused;Username=unused;Password=unused";
+        var builder = TestHostBuilder.Create<GeneratedMigrationDbContext>(
+            connectionString,
+            generateMigrations: false,
+            applyMigrations: false);
+
+        var act = async () => await builder.RunMigrationsAsync(
+            DbContextMigration.For<GeneratedMigrationDbContext>("First"),
+            DbContextMigration.For<GeneratedMigrationDbContext>("Second"));
+
+        await act.Should()
+            .ThrowAsync<ArgumentException>()
+            .WithMessage("DbContext '*' is registered more than once. (Parameter 'contexts')");
+    }
 }

@@ -16,7 +16,7 @@ It is designed for services that use PostgreSQL with EF Core and need a controll
 
 The package extends `IHostBuilder` with a migration startup step. It builds the host, resolves the configured `DbContext`, detects pending model changes, optionally scaffolds a new EF Core migration into the target project, and optionally applies existing and generated migrations to PostgreSQL.
 
-This package is intentionally small: the public entry point is `RunMigrationsAsync<TContext>()`, while generation and application behavior is controlled through configuration.
+This package is intentionally small: use `RunMigrationsAsync<TContext>()` for one DbContext or the descriptor-based `RunMigrationsAsync(...)` overload for multiple DbContexts, while generation and application behavior is controlled through configuration.
 
 ## Features
 
@@ -24,6 +24,7 @@ This package is intentionally small: the public entry point is `RunMigrationsAsy
 - Generates migration files into a configured project directory.
 - Applies compiled pending migrations.
 - Applies a newly generated migration in the same startup flow.
+- Processes multiple registered DbContexts sequentially without rebuilding the host.
 - Supports disabling generation and applying independently.
 - Uses PostgreSQL through `Npgsql.EntityFrameworkCore.PostgreSQL`.
 
@@ -72,6 +73,41 @@ using var host = await builder.RunMigrationsAsync<AppDbContext>();
 await host.RunAsync();
 ```
 
+### Multiple DbContexts
+
+Register every module DbContext in the host and pass one descriptor per context:
+
+```csharp
+using var host = await builder.RunMigrationsAsync(
+    DbContextMigration.For<IdentityWriteDbContext>("Identity"),
+    DbContextMigration.For<OrdersWriteDbContext>("Orders"));
+
+await host.RunAsync();
+```
+
+The host is built once. Contexts are migrated sequentially in the supplied order and use their own generation paths:
+
+```json
+{
+  "GenerateMigrations": true,
+  "ApplyMigrations": true,
+  "Ef": {
+    "Contexts": {
+      "Identity": {
+        "ProjectPath": "../Modules/Identity/Infrastructure",
+        "MigrationsDirectory": "Persistence/Migrations"
+      },
+      "Orders": {
+        "ProjectPath": "../Modules/Orders/Infrastructure",
+        "MigrationsDirectory": "Persistence/Migrations"
+      }
+    }
+  }
+}
+```
+
+Each DbContext should also configure its own migrations history schema or table when the contexts share one database. This prevents different modules from sharing migration ownership accidentally.
+
 ## Usage
 
 ### Configuration
@@ -84,6 +120,8 @@ The migration flow is controlled by these configuration values:
 | `ApplyMigrations` | No | `true` | Enables applying compiled pending migrations and the newly generated migration. |
 | `Ef:ProjectPath` | Yes, when generation is enabled and differences exist | None | Absolute or relative path to the project where migration files should be written. |
 | `Ef:MigrationsDirectory` | Yes, when generation is enabled and differences exist | None | Migration output directory inside `Ef:ProjectPath`. |
+
+The generic single-context overload keeps the legacy `Ef:ProjectPath` and `Ef:MigrationsDirectory` keys. The multi-context overload reads `Ef:Contexts:{ConfigurationName}:ProjectPath` and `Ef:Contexts:{ConfigurationName}:MigrationsDirectory`.
 
 Example `appsettings.json`:
 
@@ -133,6 +171,8 @@ Example `appsettings.json`:
 ## Behavior Notes
 
 - `RunMigrationsAsync<TContext>()` returns the built `IHost`.
+- The multi-context overload builds the host once and processes contexts sequentially in descriptor order.
+- A failure stops processing; migration application is not wrapped in a transaction spanning multiple DbContexts.
 - When generation is disabled and applying is enabled, only compiled pending migrations are applied.
 - When generation is enabled but there are no model differences, the package applies compiled migrations with EF Core `MigrateAsync()` if applying is enabled.
 - When generation and applying are both disabled, the host is built and returned without migration work.

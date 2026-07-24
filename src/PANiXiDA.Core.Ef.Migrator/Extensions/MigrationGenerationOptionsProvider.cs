@@ -10,20 +10,46 @@ internal static class MigrationGenerationOptionsProvider
     public static MigrationGenerationOptions Get<TContext>(IConfiguration configuration)
         where TContext : DbContext
     {
+        return Get(
+            typeof(TContext),
+            configuration,
+            configurationName: null);
+    }
+
+    public static MigrationGenerationOptions Get(
+        Type contextType,
+        IConfiguration configuration,
+        string? configurationName)
+    {
+        ArgumentNullException.ThrowIfNull(contextType);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var projectPath = configuration["Ef:ProjectPath"]
-            ?? throw new InvalidOperationException("Не задан Ef:ProjectPath.");
+        if (!typeof(DbContext).IsAssignableFrom(contextType))
+        {
+            throw new ArgumentException(
+                $"Type '{contextType.FullName}' must inherit from DbContext.",
+                nameof(contextType));
+        }
 
-        var migrationsDirectory = configuration["Ef:MigrationsDirectory"]
-            ?? throw new InvalidOperationException("Не задан Ef:MigrationsDirectory.");
+        var configurationPrefix = configurationName is null
+            ? "Ef"
+            : $"Ef:Contexts:{configurationName}";
+        var projectPathKey = $"{configurationPrefix}:ProjectPath";
+        var migrationsDirectoryKey = $"{configurationPrefix}:MigrationsDirectory";
+
+        var projectPath = configuration[projectPathKey]
+            ?? throw new InvalidOperationException($"Не задан {projectPathKey}.");
+
+        var migrationsDirectory = configuration[migrationsDirectoryKey]
+            ?? throw new InvalidOperationException($"Не задан {migrationsDirectoryKey}.");
 
         var projectPathAbsolute = Path.GetFullPath(projectPath);
         var migrationsDirectoryAbsolute = GetMigrationsDirectoryAbsolutePath(
             projectPathAbsolute,
-            migrationsDirectory);
+            migrationsDirectory,
+            migrationsDirectoryKey);
 
-        var rootNamespace = typeof(TContext).Assembly.GetName().Name!;
+        var rootNamespace = contextType.Assembly.GetName().Name!;
 
         var migrationsSubNamespace = GetMigrationsSubNamespace(
             projectPathAbsolute,
@@ -38,7 +64,8 @@ internal static class MigrationGenerationOptionsProvider
 
     private static string GetMigrationsDirectoryAbsolutePath(
         string projectPathAbsolute,
-        string migrationsDirectoryRelative)
+        string migrationsDirectoryRelative,
+        string migrationsDirectoryKey = "Ef:MigrationsDirectory")
     {
         var migrationsDirectoryAbsolute = Path.GetFullPath(
             Path.Combine(projectPathAbsolute, migrationsDirectoryRelative));
@@ -55,7 +82,7 @@ internal static class MigrationGenerationOptionsProvider
         }
 
         throw new InvalidOperationException(
-            $"Ef:MigrationsDirectory должен указывать на папку внутри проекта: {migrationsDirectoryRelative}");
+            $"{migrationsDirectoryKey} должен указывать на папку внутри проекта: {migrationsDirectoryRelative}");
     }
 
     private static string GetMigrationsSubNamespace(

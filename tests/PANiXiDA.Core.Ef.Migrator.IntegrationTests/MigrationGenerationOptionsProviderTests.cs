@@ -83,6 +83,24 @@ public sealed class MigrationGenerationOptionsProviderTests
             .WithMessage("Ef:MigrationsDirectory должен указывать на папку внутри проекта:*");
     }
 
+    [Fact(DisplayName = "Reads context-specific migration generation settings")]
+    public void Get_WithConfigurationName_ReadsContextSection()
+    {
+        using var project = new TempMigrationProject("ModuleMigrations");
+        var configuration = CreateConfiguration(
+            ("Ef:Contexts:Module:ProjectPath", project.ProjectPath),
+            ("Ef:Contexts:Module:MigrationsDirectory", project.MigrationsDirectory));
+
+        var options = MigrationGenerationOptionsProvider.Get(
+            typeof(GeneratedMigrationDbContext),
+            configuration,
+            "Module");
+
+        options.ProjectPathAbsolute.Should().Be(Path.GetFullPath(project.ProjectPath));
+        options.MigrationsDirectory.Should().Be(project.MigrationsDirectory);
+        options.MigrationsSubNamespace.Should().Be(project.MigrationsDirectory);
+    }
+
     private static IConfiguration CreateConfiguration(params (string Key, string Value)[] values)
     {
         return new ConfigurationBuilder()

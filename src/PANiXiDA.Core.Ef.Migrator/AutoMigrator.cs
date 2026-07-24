@@ -35,18 +35,55 @@ public static class AutoMigrator
     /// Thrown when migration generation requires the <c>Ef:ProjectPath</c> or <c>Ef:MigrationsDirectory</c>
     /// setting and it is missing.
     /// </exception>
-    public static async Task<IHost> RunMigrationsAsync<TContext>(this IHostBuilder builder)
+    public static Task<IHost> RunMigrationsAsync<TContext>(this IHostBuilder builder)
         where TContext : DbContext
     {
+        return RunMigrationsAsync(
+            builder,
+            [DbContextMigration.For<TContext>()],
+            useLegacyGenerationConfiguration: true);
+    }
+
+    /// <summary>
+    /// Builds the host and runs migration generation and application for every specified DbContext.
+    /// </summary>
+    /// <param name="builder">The configured application builder with all specified DbContexts registered.</param>
+    /// <param name="contexts">The DbContexts included in the migration run.</param>
+    /// <returns>The built <see cref="IHost"/> after all selected migration actions are completed.</returns>
+    /// <remarks>
+    /// Contexts are processed sequentially in the supplied order. Generation settings are read from
+    /// <c>Ef:Contexts:{ConfigurationName}:ProjectPath</c> and
+    /// <c>Ef:Contexts:{ConfigurationName}:MigrationsDirectory</c>.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="builder"/> or <paramref name="contexts"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when no contexts are supplied or the same DbContext or configuration name is registered more than once.
+    /// </exception>
+    public static Task<IHost> RunMigrationsAsync(
+        this IHostBuilder builder,
+        params DbContextMigration[] contexts)
+    {
+        return RunMigrationsAsync(
+            builder,
+            contexts,
+            useLegacyGenerationConfiguration: false);
+    }
+
+    private static async Task<IHost> RunMigrationsAsync(
+        IHostBuilder builder,
+        DbContextMigration[] contexts,
+        bool useLegacyGenerationConfiguration)
+    {
         ArgumentNullException.ThrowIfNull(builder);
+        ValidateContexts(contexts);
 
         var host = builder.Build();
 
         using var scope = host.Services.CreateScope();
 
         var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-        var db = scope.ServiceProvider.GetRequiredService<TContext>();
-
         var generateMigrations = configuration.GetValue("GenerateMigrations", true);
         var applyMigrations = configuration.GetValue("ApplyMigrations", true);
 
@@ -55,14 +92,34 @@ public static class AutoMigrator
             return host;
         }
 
+        foreach (var context in contexts)
+        {
+            var db = (DbContext)scope.ServiceProvider.GetRequiredService(context.DbContextType);
+
+            await RunDbContextMigrationsAsync(
+                db,
+                context,
+                configuration,
+                generateMigrations,
+                applyMigrations,
+                useLegacyGenerationConfiguration);
+        }
+
+        return host;
+    }
+
+    private static async Task RunDbContextMigrationsAsync(
+        DbContext db,
+        DbContextMigration context,
+        IConfiguration configuration,
+        bool generateMigrations,
+        bool applyMigrations,
+        bool useLegacyGenerationConfiguration)
+    {
         if (!generateMigrations)
         {
-            if (applyMigrations)
-            {
-                await MigrationsApplier.ApplyPendingMigrationsAsync(db);
-            }
-
-            return host;
+            await MigrationsApplier.ApplyPendingMigrationsAsync(db);
+            return;
         }
 
         using var designServiceProvider = CreateDesignServiceProvider(db);
@@ -75,32 +132,80 @@ public static class AutoMigrator
                 await db.Database.MigrateAsync();
             }
 
-            return host;
+            return;
         }
 
-        var generationOptions = MigrationGenerationOptionsProvider.Get<TContext>(configuration);
+        var generationOptions = MigrationGenerationOptionsProvider.Get(
+            context.DbContextType,
+            configuration,
+            useLegacyGenerationConfiguration
+                ? null
+                : context.ConfigurationName);
 
         var scaffoldedMigration = MigrationsCreator.CreateAndSaveMigration(
             designServiceProvider: designServiceProvider,
             difference: difference,
-            contextType: typeof(TContext),
+            contextType: context.DbContextType,
             rootNamespace: generationOptions.RootNamespace,
             subNamespace: generationOptions.MigrationsSubNamespace,
             projectPath: generationOptions.ProjectPathAbsolute,
             outputDir: generationOptions.MigrationsDirectory);
 
-        if (applyMigrations)
+        if (!applyMigrations)
         {
-            await MigrationsApplier.ApplyPendingMigrationsAsync(db);
-
-            await MigrationsApplier.ApplyMigrationAsync(
-                db: db,
-                difference: difference.UpOperations,
-                migrationId: scaffoldedMigration.MigrationId,
-                targetModel: difference.TargetModel);
+            return;
         }
 
-        return host;
+        await MigrationsApplier.ApplyPendingMigrationsAsync(db);
+
+        await MigrationsApplier.ApplyMigrationAsync(
+            db: db,
+            difference: difference.UpOperations,
+            migrationId: scaffoldedMigration.MigrationId,
+            targetModel: difference.TargetModel);
+    }
+
+    private static void ValidateContexts(DbContextMigration[] contexts)
+    {
+        ArgumentNullException.ThrowIfNull(contexts);
+
+        if (contexts.Length == 0)
+        {
+            throw new ArgumentException(
+                "At least one DbContext migration must be specified.",
+                nameof(contexts));
+        }
+
+        if (contexts.Any(context => context is null))
+        {
+            throw new ArgumentException(
+                "DbContext migrations must not contain null values.",
+                nameof(contexts));
+        }
+
+        var duplicateContext = contexts
+            .GroupBy(context => context.DbContextType)
+            .FirstOrDefault(group => group.Count() > 1);
+
+        if (duplicateContext is not null)
+        {
+            throw new ArgumentException(
+                $"DbContext '{duplicateContext.Key.FullName}' is registered more than once.",
+                nameof(contexts));
+        }
+
+        var duplicateConfigurationName = contexts
+            .GroupBy(
+                context => context.ConfigurationName,
+                StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1);
+
+        if (duplicateConfigurationName is not null)
+        {
+            throw new ArgumentException(
+                $"Migration configuration name '{duplicateConfigurationName.Key}' is registered more than once.",
+                nameof(contexts));
+        }
     }
 
     private static ServiceProvider CreateDesignServiceProvider(DbContext db)

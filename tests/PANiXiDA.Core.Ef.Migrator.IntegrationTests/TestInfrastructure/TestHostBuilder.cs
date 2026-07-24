@@ -49,4 +49,46 @@ internal static class TestHostBuilder
                 });
             });
     }
+
+    public static IHostBuilder Create<TFirstContext, TSecondContext>(
+        string postgreSqlConnectionString,
+        bool generateMigrations,
+        bool applyMigrations,
+        IReadOnlyDictionary<string, string?> additionalConfiguration)
+        where TFirstContext : DbContext
+        where TSecondContext : DbContext
+    {
+        var configurationValues = new Dictionary<string, string?>(additionalConfiguration)
+        {
+            ["PostgreSqlConnectionString"] = postgreSqlConnectionString,
+            ["GenerateMigrations"] = generateMigrations.ToString(),
+            ["ApplyMigrations"] = applyMigrations.ToString(),
+        };
+
+        return Host
+            .CreateDefaultBuilder([])
+            .ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.Sources.Clear();
+                configuration.AddInMemoryCollection(configurationValues);
+            })
+            .ConfigureServices(services =>
+            {
+                AddDbContext<TFirstContext>(services, postgreSqlConnectionString);
+                AddDbContext<TSecondContext>(services, postgreSqlConnectionString);
+            });
+    }
+
+    private static void AddDbContext<TContext>(
+        IServiceCollection services,
+        string postgreSqlConnectionString)
+        where TContext : DbContext
+    {
+        services.AddDbContext<TContext>(options =>
+        {
+            options.UseNpgsql(
+                postgreSqlConnectionString,
+                npgsql => npgsql.MigrationsAssembly(typeof(TContext).Assembly.GetName().Name));
+        });
+    }
 }
