@@ -10,30 +10,10 @@ internal static class MigrationGenerationOptionsProvider
     public static MigrationGenerationOptions Get<TContext>(IConfiguration configuration)
         where TContext : DbContext
     {
-        return Get(
-            typeof(TContext),
-            configuration,
-            configurationName: null);
-    }
-
-    public static MigrationGenerationOptions Get(
-        Type contextType,
-        IConfiguration configuration,
-        string? configurationName)
-    {
-        ArgumentNullException.ThrowIfNull(contextType);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (!typeof(DbContext).IsAssignableFrom(contextType))
-        {
-            throw new ArgumentException(
-                $"Type '{contextType.FullName}' must inherit from DbContext.",
-                nameof(contextType));
-        }
-
-        var configurationPrefix = configurationName is null
-            ? "Ef"
-            : $"Ef:Contexts:{configurationName}";
+        var contextType = typeof(TContext);
+        var configurationPrefix = $"Ef:Contexts:{contextType.Name}";
         var projectPathKey = $"{configurationPrefix}:ProjectPath";
         var migrationsDirectoryKey = $"{configurationPrefix}:MigrationsDirectory";
 
@@ -65,7 +45,7 @@ internal static class MigrationGenerationOptionsProvider
     private static string GetMigrationsDirectoryAbsolutePath(
         string projectPathAbsolute,
         string migrationsDirectoryRelative,
-        string migrationsDirectoryKey = "Ef:MigrationsDirectory")
+        string migrationsDirectoryKey)
     {
         var migrationsDirectoryAbsolute = Path.GetFullPath(
             Path.Combine(projectPathAbsolute, migrationsDirectoryRelative));

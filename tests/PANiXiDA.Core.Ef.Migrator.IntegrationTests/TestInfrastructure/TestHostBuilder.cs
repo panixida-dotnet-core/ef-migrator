@@ -24,12 +24,12 @@ internal static class TestHostBuilder
 
         if (projectPath is not null)
         {
-            configurationValues["Ef:ProjectPath"] = projectPath;
+            configurationValues[$"Ef:Contexts:{typeof(TContext).Name}:ProjectPath"] = projectPath;
         }
 
         if (migrationsDirectory is not null)
         {
-            configurationValues["Ef:MigrationsDirectory"] = migrationsDirectory;
+            configurationValues[$"Ef:Contexts:{typeof(TContext).Name}:MigrationsDirectory"] = migrationsDirectory;
         }
 
         return Host
@@ -41,12 +41,7 @@ internal static class TestHostBuilder
             })
             .ConfigureServices(services =>
             {
-                services.AddDbContext<TContext>(options =>
-                {
-                    options.UseNpgsql(
-                        postgreSqlConnectionString,
-                        npgsql => npgsql.MigrationsAssembly(typeof(TContext).Assembly.GetName().Name));
-                });
+                AddDbContext<TContext>(services, postgreSqlConnectionString);
             });
     }
 

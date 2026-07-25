@@ -63,7 +63,7 @@ public sealed class MigrationsNameBuilderTests
 
         var migrationName = MigrationsNameBuilder.BuildMigrationName([operation]);
 
-        migrationName.Length.Should().BeLessThanOrEqualTo(134);
+        migrationName.Length.Should().BeLessThanOrEqualTo(84);
         migrationName.Should().MatchRegex("_[A-F0-9]{8}$");
     }
 

@@ -13,8 +13,8 @@ public sealed class MigrationGenerationOptionsProviderTests
     {
         using var project = new TempMigrationProject(Path.Combine("Data", "Migrations"));
         var configuration = CreateConfiguration(
-            ("Ef:ProjectPath", project.ProjectPath),
-            ("Ef:MigrationsDirectory", project.MigrationsDirectory));
+            ("Ef:Contexts:GeneratedMigrationDbContext:ProjectPath", project.ProjectPath),
+            ("Ef:Contexts:GeneratedMigrationDbContext:MigrationsDirectory", project.MigrationsDirectory));
 
         var options = MigrationGenerationOptionsProvider.Get<GeneratedMigrationDbContext>(configuration);
 
@@ -29,8 +29,8 @@ public sealed class MigrationGenerationOptionsProviderTests
     {
         using var project = new TempMigrationProject();
         var configuration = CreateConfiguration(
-            ("Ef:ProjectPath", project.ProjectPath),
-            ("Ef:MigrationsDirectory", "."));
+            ("Ef:Contexts:GeneratedMigrationDbContext:ProjectPath", project.ProjectPath),
+            ("Ef:Contexts:GeneratedMigrationDbContext:MigrationsDirectory", "."));
 
         var options = MigrationGenerationOptionsProvider.Get<GeneratedMigrationDbContext>(configuration);
 
@@ -49,24 +49,26 @@ public sealed class MigrationGenerationOptionsProviderTests
     [Fact(DisplayName = "Throws when ProjectPath is missing")]
     public void Get_WhenProjectPathIsMissing_Throws()
     {
-        var configuration = CreateConfiguration(("Ef:MigrationsDirectory", "Migrations"));
+        var configuration = CreateConfiguration(
+            ("Ef:Contexts:GeneratedMigrationDbContext:MigrationsDirectory", "Migrations"));
 
         var act = () => MigrationGenerationOptionsProvider.Get<GeneratedMigrationDbContext>(configuration);
 
         act.Should().Throw<InvalidOperationException>()
-            .WithMessage("Не задан Ef:ProjectPath.");
+            .WithMessage("Не задан Ef:Contexts:GeneratedMigrationDbContext:ProjectPath.");
     }
 
     [Fact(DisplayName = "Throws when MigrationsDirectory is missing")]
     public void Get_WhenMigrationsDirectoryIsMissing_Throws()
     {
         using var project = new TempMigrationProject();
-        var configuration = CreateConfiguration(("Ef:ProjectPath", project.ProjectPath));
+        var configuration = CreateConfiguration(
+            ("Ef:Contexts:GeneratedMigrationDbContext:ProjectPath", project.ProjectPath));
 
         var act = () => MigrationGenerationOptionsProvider.Get<GeneratedMigrationDbContext>(configuration);
 
         act.Should().Throw<InvalidOperationException>()
-            .WithMessage("Не задан Ef:MigrationsDirectory.");
+            .WithMessage("Не задан Ef:Contexts:GeneratedMigrationDbContext:MigrationsDirectory.");
     }
 
     [Fact(DisplayName = "Throws when the migrations directory leaves the project directory")]
@@ -74,27 +76,27 @@ public sealed class MigrationGenerationOptionsProviderTests
     {
         using var project = new TempMigrationProject();
         var configuration = CreateConfiguration(
-            ("Ef:ProjectPath", project.ProjectPath),
-            ("Ef:MigrationsDirectory", Path.Combine("..", "Outside")));
+            ("Ef:Contexts:GeneratedMigrationDbContext:ProjectPath", project.ProjectPath),
+            ("Ef:Contexts:GeneratedMigrationDbContext:MigrationsDirectory", Path.Combine("..", "Outside")));
 
         var act = () => MigrationGenerationOptionsProvider.Get<GeneratedMigrationDbContext>(configuration);
 
         act.Should().Throw<InvalidOperationException>()
-            .WithMessage("Ef:MigrationsDirectory должен указывать на папку внутри проекта:*");
+            .WithMessage(
+                "Ef:Contexts:GeneratedMigrationDbContext:MigrationsDirectory должен указывать на папку внутри проекта:*");
     }
 
-    [Fact(DisplayName = "Reads context-specific migration generation settings")]
-    public void Get_WithConfigurationName_ReadsContextSection()
+    [Fact(DisplayName = "Uses the DbContext type name to select migration generation settings")]
+    public void Get_WhenMultipleSectionsExist_ReadsSectionNamedAfterDbContext()
     {
         using var project = new TempMigrationProject("ModuleMigrations");
         var configuration = CreateConfiguration(
-            ("Ef:Contexts:Module:ProjectPath", project.ProjectPath),
-            ("Ef:Contexts:Module:MigrationsDirectory", project.MigrationsDirectory));
+            ("Ef:ProjectPath", "ignored"),
+            ("Ef:MigrationsDirectory", "ignored"),
+            ("Ef:Contexts:GeneratedMigrationDbContext:ProjectPath", project.ProjectPath),
+            ("Ef:Contexts:GeneratedMigrationDbContext:MigrationsDirectory", project.MigrationsDirectory));
 
-        var options = MigrationGenerationOptionsProvider.Get(
-            typeof(GeneratedMigrationDbContext),
-            configuration,
-            "Module");
+        var options = MigrationGenerationOptionsProvider.Get<GeneratedMigrationDbContext>(configuration);
 
         options.ProjectPathAbsolute.Should().Be(Path.GetFullPath(project.ProjectPath));
         options.MigrationsDirectory.Should().Be(project.MigrationsDirectory);
