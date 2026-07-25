@@ -10,7 +10,8 @@ internal static class MigrationsDifferenceProvider
 {
     internal static MigrationsDifference GetDifferences<TContext>(
         TContext db,
-        IServiceProvider designServiceProvider) where TContext : DbContext
+        IServiceProvider designServiceProvider)
+        where TContext : DbContext
     {
         var migrationsAssembly = db.GetService<IMigrationsAssembly>();
         var modelDiffer = db.GetService<IMigrationsModelDiffer>();

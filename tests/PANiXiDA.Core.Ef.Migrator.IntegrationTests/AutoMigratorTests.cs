@@ -21,9 +21,9 @@ public sealed class AutoMigratorTests(PostgreSqlContainerFixture fixture)
             project.ProjectPath,
             project.MigrationsDirectory);
 
-        using var host = await builder.RunMigrationsAsync<GeneratedMigrationDbContext>();
+        using var host = builder.Build();
 
-        host.Should().NotBeNull();
+        await host.RunMigrationsAsync<GeneratedMigrationDbContext>();
         var generatedFiles = project.GetGeneratedFiles();
         generatedFiles.Should().NotBeEmpty();
         generatedFiles.Should().OnlyContain(file =>
@@ -47,9 +47,9 @@ public sealed class AutoMigratorTests(PostgreSqlContainerFixture fixture)
             project.ProjectPath,
             project.MigrationsDirectory);
 
-        using var host = await builder.RunMigrationsAsync<GeneratedMigrationDbContext>();
+        using var host = builder.Build();
 
-        host.Should().NotBeNull();
+        await host.RunMigrationsAsync<GeneratedMigrationDbContext>();
         var migrationId = GetGeneratedMigrationId(project);
         project.GetGeneratedFiles().Should().NotBeEmpty();
         (await DatabaseAssert.TableExistsAsync(connectionString, "generated_entities")).Should().BeTrue();
@@ -68,9 +68,9 @@ public sealed class AutoMigratorTests(PostgreSqlContainerFixture fixture)
             project.ProjectPath,
             project.MigrationsDirectory);
 
-        using var host = await builder.RunMigrationsAsync<PendingChangesDbContext>();
+        using var host = builder.Build();
 
-        host.Should().NotBeNull();
+        await host.RunMigrationsAsync<PendingChangesDbContext>();
         project.GetGeneratedFiles().Should().BeEmpty();
         (await DatabaseAssert.TableExistsAsync(connectionString, "existing_entities")).Should().BeTrue();
         (await DatabaseAssert.TableExistsAsync(connectionString, "pending_entities")).Should().BeFalse();
@@ -89,9 +89,9 @@ public sealed class AutoMigratorTests(PostgreSqlContainerFixture fixture)
             project.ProjectPath,
             project.MigrationsDirectory);
 
-        using var host = await builder.RunMigrationsAsync<PendingChangesDbContext>();
+        using var host = builder.Build();
 
-        host.Should().NotBeNull();
+        await host.RunMigrationsAsync<PendingChangesDbContext>();
         project.GetGeneratedFiles().Should().BeEmpty();
         (await DatabaseAssert.TableExistsAsync(connectionString, "existing_entities")).Should().BeTrue();
         (await DatabaseAssert.TableExistsAsync(connectionString, "pending_entities")).Should().BeFalse();
@@ -111,9 +111,9 @@ public sealed class AutoMigratorTests(PostgreSqlContainerFixture fixture)
             project.ProjectPath,
             project.MigrationsDirectory);
 
-        using var host = await builder.RunMigrationsAsync<PendingChangesDbContext>();
+        using var host = builder.Build();
 
-        host.Should().NotBeNull();
+        await host.RunMigrationsAsync<PendingChangesDbContext>();
         project.GetGeneratedFiles().Should().BeEmpty();
         (await DatabaseAssert.TableExistsAsync(connectionString, "existing_entities")).Should().BeFalse();
         (await DatabaseAssert.TableExistsAsync(connectionString, "pending_entities")).Should().BeFalse();
@@ -132,9 +132,9 @@ public sealed class AutoMigratorTests(PostgreSqlContainerFixture fixture)
             project.ProjectPath,
             project.MigrationsDirectory);
 
-        using var host = await builder.RunMigrationsAsync<PendingChangesDbContext>();
+        using var host = builder.Build();
 
-        host.Should().NotBeNull();
+        await host.RunMigrationsAsync<PendingChangesDbContext>();
         var migrationText = await File.ReadAllTextAsync(
             GetGeneratedMigrationFile(project),
             TestContext.Current.CancellationToken);
@@ -157,9 +157,9 @@ public sealed class AutoMigratorTests(PostgreSqlContainerFixture fixture)
             project.ProjectPath,
             project.MigrationsDirectory);
 
-        using var host = await builder.RunMigrationsAsync<PendingChangesDbContext>();
+        using var host = builder.Build();
 
-        host.Should().NotBeNull();
+        await host.RunMigrationsAsync<PendingChangesDbContext>();
         var migrationId = GetGeneratedMigrationId(project);
         var migrationText = await File.ReadAllTextAsync(
             GetGeneratedMigrationFile(project),
@@ -184,9 +184,9 @@ public sealed class AutoMigratorTests(PostgreSqlContainerFixture fixture)
             project.ProjectPath,
             project.MigrationsDirectory);
 
-        using var host = await builder.RunMigrationsAsync<GeneratedMigrationDbContext>();
+        using var host = builder.Build();
 
-        host.Should().NotBeNull();
+        await host.RunMigrationsAsync<GeneratedMigrationDbContext>();
         project.GetGeneratedFiles().Should().BeEmpty();
         (await DatabaseAssert.TableExistsAsync(connectionString, "generated_entities")).Should().BeFalse();
         (await DatabaseAssert.HistoryRowsCountAsync(connectionString)).Should().Be(0);
@@ -204,9 +204,9 @@ public sealed class AutoMigratorTests(PostgreSqlContainerFixture fixture)
             project.ProjectPath,
             project.MigrationsDirectory);
 
-        using var host = await builder.RunMigrationsAsync<ExistingMigrationDbContext>();
+        using var host = builder.Build();
 
-        host.Should().NotBeNull();
+        await host.RunMigrationsAsync<ExistingMigrationDbContext>();
         project.GetGeneratedFiles().Should().BeEmpty();
         (await DatabaseAssert.TableExistsAsync(connectionString, "existing_entities")).Should().BeTrue();
         (await DatabaseAssert.HistoryRowExistsAsync(connectionString, ExistingMigrationId)).Should().BeTrue();

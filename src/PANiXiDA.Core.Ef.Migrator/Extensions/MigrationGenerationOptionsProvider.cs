@@ -12,18 +12,24 @@ internal static class MigrationGenerationOptionsProvider
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var projectPath = configuration["Ef:ProjectPath"]
-            ?? throw new InvalidOperationException("Не задан Ef:ProjectPath.");
+        var contextType = typeof(TContext);
+        var configurationPrefix = $"Ef:Contexts:{contextType.Name}";
+        var projectPathKey = $"{configurationPrefix}:ProjectPath";
+        var migrationsDirectoryKey = $"{configurationPrefix}:MigrationsDirectory";
 
-        var migrationsDirectory = configuration["Ef:MigrationsDirectory"]
-            ?? throw new InvalidOperationException("Не задан Ef:MigrationsDirectory.");
+        var projectPath = configuration[projectPathKey]
+            ?? throw new InvalidOperationException($"Не задан {projectPathKey}.");
+
+        var migrationsDirectory = configuration[migrationsDirectoryKey]
+            ?? throw new InvalidOperationException($"Не задан {migrationsDirectoryKey}.");
 
         var projectPathAbsolute = Path.GetFullPath(projectPath);
         var migrationsDirectoryAbsolute = GetMigrationsDirectoryAbsolutePath(
             projectPathAbsolute,
-            migrationsDirectory);
+            migrationsDirectory,
+            migrationsDirectoryKey);
 
-        var rootNamespace = typeof(TContext).Assembly.GetName().Name!;
+        var rootNamespace = contextType.Assembly.GetName().Name!;
 
         var migrationsSubNamespace = GetMigrationsSubNamespace(
             projectPathAbsolute,
@@ -38,7 +44,8 @@ internal static class MigrationGenerationOptionsProvider
 
     private static string GetMigrationsDirectoryAbsolutePath(
         string projectPathAbsolute,
-        string migrationsDirectoryRelative)
+        string migrationsDirectoryRelative,
+        string migrationsDirectoryKey)
     {
         var migrationsDirectoryAbsolute = Path.GetFullPath(
             Path.Combine(projectPathAbsolute, migrationsDirectoryRelative));
@@ -55,7 +62,7 @@ internal static class MigrationGenerationOptionsProvider
         }
 
         throw new InvalidOperationException(
-            $"Ef:MigrationsDirectory должен указывать на папку внутри проекта: {migrationsDirectoryRelative}");
+            $"{migrationsDirectoryKey} должен указывать на папку внутри проекта: {migrationsDirectoryRelative}");
     }
 
     private static string GetMigrationsSubNamespace(

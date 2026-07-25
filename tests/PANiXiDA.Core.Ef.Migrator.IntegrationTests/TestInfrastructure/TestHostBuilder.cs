@@ -24,12 +24,12 @@ internal static class TestHostBuilder
 
         if (projectPath is not null)
         {
-            configurationValues["Ef:ProjectPath"] = projectPath;
+            configurationValues[$"Ef:Contexts:{typeof(TContext).Name}:ProjectPath"] = projectPath;
         }
 
         if (migrationsDirectory is not null)
         {
-            configurationValues["Ef:MigrationsDirectory"] = migrationsDirectory;
+            configurationValues[$"Ef:Contexts:{typeof(TContext).Name}:MigrationsDirectory"] = migrationsDirectory;
         }
 
         return Host
@@ -41,12 +41,49 @@ internal static class TestHostBuilder
             })
             .ConfigureServices(services =>
             {
-                services.AddDbContext<TContext>(options =>
-                {
-                    options.UseNpgsql(
-                        postgreSqlConnectionString,
-                        npgsql => npgsql.MigrationsAssembly(typeof(TContext).Assembly.GetName().Name));
-                });
+                AddDbContext<TContext>(services, postgreSqlConnectionString);
             });
+    }
+
+    public static IHostBuilder Create<TFirstContext, TSecondContext>(
+        string postgreSqlConnectionString,
+        bool generateMigrations,
+        bool applyMigrations,
+        IReadOnlyDictionary<string, string?> additionalConfiguration)
+        where TFirstContext : DbContext
+        where TSecondContext : DbContext
+    {
+        var configurationValues = new Dictionary<string, string?>(additionalConfiguration)
+        {
+            ["PostgreSqlConnectionString"] = postgreSqlConnectionString,
+            ["GenerateMigrations"] = generateMigrations.ToString(),
+            ["ApplyMigrations"] = applyMigrations.ToString(),
+        };
+
+        return Host
+            .CreateDefaultBuilder([])
+            .ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.Sources.Clear();
+                configuration.AddInMemoryCollection(configurationValues);
+            })
+            .ConfigureServices(services =>
+            {
+                AddDbContext<TFirstContext>(services, postgreSqlConnectionString);
+                AddDbContext<TSecondContext>(services, postgreSqlConnectionString);
+            });
+    }
+
+    private static void AddDbContext<TContext>(
+        IServiceCollection services,
+        string postgreSqlConnectionString)
+        where TContext : DbContext
+    {
+        services.AddDbContext<TContext>(options =>
+        {
+            options.UseNpgsql(
+                postgreSqlConnectionString,
+                npgsql => npgsql.MigrationsAssembly(typeof(TContext).Assembly.GetName().Name));
+        });
     }
 }

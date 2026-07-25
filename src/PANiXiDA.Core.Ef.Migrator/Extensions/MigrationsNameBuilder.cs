@@ -8,7 +8,7 @@ namespace PANiXiDA.Core.Ef.Migrator.Extensions;
 
 internal static partial class MigrationsNameBuilder
 {
-    private const int MaxMigrationLength = 150;
+    private const int MaxMigrationLength = 100;
     private const int TimePrefix = 16;
     private const int MaxNameLength = MaxMigrationLength - TimePrefix;
     private const int MultipleUnderscoresTimeoutMilliseconds = 1000;
