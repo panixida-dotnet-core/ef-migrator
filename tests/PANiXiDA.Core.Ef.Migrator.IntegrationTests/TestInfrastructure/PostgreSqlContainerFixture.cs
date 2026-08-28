@@ -10,7 +10,7 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
 
     public PostgreSqlContainerFixture()
     {
-        container = new PostgreSqlBuilder()
+        container = new PostgreSqlBuilder("postgres:17-alpine")
             .WithDatabase("migrator_tests")
             .WithUsername("postgres")
             .WithPassword("postgres")
