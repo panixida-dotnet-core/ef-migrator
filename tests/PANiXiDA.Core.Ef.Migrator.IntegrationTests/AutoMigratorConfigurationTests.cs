@@ -18,7 +18,12 @@ public sealed class AutoMigratorConfigurationTests
 
         using var host = builder.Build();
 
-        await host.RunMigrationsAsync<ExistingMigrationDbContext>();
+        async Task act()
+        {
+            await host.RunMigrationsAsync<ExistingMigrationDbContext>();
+        }
+
+        await FluentActions.Awaiting(act).Should().NotThrowAsync();
     }
 
     [Fact(DisplayName = "Throws when ProjectPath is missing for migration generation")]
