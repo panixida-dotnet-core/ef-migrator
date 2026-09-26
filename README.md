@@ -209,6 +209,26 @@ Example `appsettings.json`:
 - The generated migration ID is limited to 100 characters, including the timestamp prefix added by EF Core.
 - Each context migrations directory must point to a directory inside its configured project path.
 
+### Native AOT compatibility
+
+The package uses the .NET configuration binding source generator to read
+`GenerateMigrations` and `ApplyMigrations`. This removes the configuration binder's
+trimming warnings, but migration generation and application still do not support
+Native AOT with the current EF Core dependencies.
+
+The remaining unsupported paths are:
+
+| Location | EF Core dependency |
+| --- | --- |
+| `AutoMigrator.RunMigrationsAsync` | Calls `Database.MigrateAsync()` when the model is unchanged and applying is enabled. EF marks this API with `RequiresDynamicCode` (`IL3050`). |
+| `MigrationsApplier.ApplyPendingMigrationsAsync` | Calls `Database.GetAppliedMigrationsAsync()` (`IL3050`), discovers and creates migrations through `IMigrationsAssembly`, and reads each migration's `TargetModel`. |
+| `AutoMigrator.CreateDesignServiceProvider`, `MigrationsDifferenceProvider.GetDifferences`, and `MigrationsCreator.CreateAndSaveMigration` | Use EF/Npgsql design-time services, the model snapshot, and the full `IDesignTimeModel` to compare models and generate migration source files. A compiled runtime model does not replace this design-time model. |
+| `MigrationsApplier.ApplyEntityChangesAsync` and `ApplyHistoryRowAsync` | Generate SQL from migration operations and EF model metadata, and use `IHistoryRepository` to generate history-table SQL. These remain part of the EF migration pipeline. |
+
+Disabling generation does not make migration application Native AOT-compatible.
+An analyzer-only library build does not validate the complete EF/provider runtime
+path; that requires publishing and running a consuming Native AOT application.
+
 ## Project Structure
 
 ```text
