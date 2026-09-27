@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <IsPackable>true</IsPackable>
+        <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
 
         <AssemblyName>PANiXiDA.Core.Ef.Migrator</AssemblyName>
 

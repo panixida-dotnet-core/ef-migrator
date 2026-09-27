@@ -209,6 +209,12 @@ Example `appsettings.json`:
 - The generated migration ID is limited to 100 characters, including the timestamp prefix added by EF Core.
 - Each context migrations directory must point to a directory inside its configured project path.
 
+### Native AOT compatibility
+
+Configuration binding uses source generation. Creating and applying migrations
+remain incompatible with Native AOT due to limitations in EF Core's migration
+and design-time services.
+
 ## Project Structure
 
 ```text
