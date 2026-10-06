@@ -42,6 +42,28 @@ public sealed class AutoMigratorConfigurationTests
             .WithMessage("Не задан Ef:Contexts:GeneratedMigrationDbContext:ProjectPath.");
     }
 
+    [Theory(DisplayName = "Reports missing generation settings before connecting to PostgreSQL")]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RunMigrationsAsync_WhenGenerationSettingsAreMissingAndApplyingEnabled_ValidatesBeforeConnecting(
+        bool missingProjectPath)
+    {
+        const string connectionString = "Host=127.0.0.1;Port=1;Database=unused;Username=unused;Password=unused;Timeout=1";
+        using var project = new TempMigrationProject();
+        using var host = TestHostBuilder.Create<GeneratedMigrationDbContext>(
+            connectionString,
+            generateMigrations: true,
+            applyMigrations: true,
+            projectPath: missingProjectPath ? null : project.ProjectPath,
+            migrationsDirectory: missingProjectPath ? project.MigrationsDirectory : null)
+            .Build();
+        var missingSetting = missingProjectPath ? "ProjectPath" : "MigrationsDirectory";
+        var act = async () => await host.RunMigrationsAsync<GeneratedMigrationDbContext>();
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage($"Не задан Ef:Contexts:GeneratedMigrationDbContext:{missingSetting}.");
+    }
+
     [Fact(DisplayName = "Throws when the host is null")]
     public async Task RunMigrationsAsync_WhenHostIsNull_Throws()
     {

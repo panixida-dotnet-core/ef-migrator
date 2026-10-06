@@ -208,6 +208,7 @@ Example `appsettings.json`:
 - When generation is enabled but there are no model differences, the package applies compiled migrations with EF Core `MigrateAsync()` if applying is enabled.
 - When generation and applying are both disabled, the invocation completes without migration work.
 - History initialization runs only when applying is enabled and respects the context's configured history table and schema.
+- When model changes require generation, generation settings are validated and migration files are created before connecting to PostgreSQL or initializing its history table.
 - The generated migration ID is limited to 100 characters, including the timestamp prefix added by EF Core.
 - Each context migrations directory must point to a directory inside its configured project path.
 

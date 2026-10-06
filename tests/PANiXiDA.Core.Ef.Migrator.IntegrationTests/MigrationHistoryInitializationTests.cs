@@ -90,6 +90,46 @@ public sealed class MigrationHistoryInitializationTests(PostgreSqlContainerFixtu
         (await DatabaseAssert.HistoryRowsCountAsync(connectionString)).Should().Be(0);
     }
 
+    [Theory(DisplayName = "Validates generation settings before creating the database or migration history")]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task RunMigrationsAsync_WhenGenerationSettingsAreMissing_DoesNotInitializeDatabase(
+        bool missingProjectPath,
+        bool databaseExists)
+    {
+        var existingConnectionString = await fixture.CreateConnectionStringAsync();
+        var connectionSettings = new NpgsqlConnectionStringBuilder(existingConnectionString);
+        if (!databaseExists)
+        {
+            connectionSettings.Database = "missing_" + Guid.NewGuid().ToString("N");
+        }
+
+        using var project = new TempMigrationProject();
+        using var host = TestHostBuilder.Create<GeneratedMigrationDbContext>(
+            connectionSettings.ConnectionString,
+            generateMigrations: true,
+            applyMigrations: true,
+            projectPath: missingProjectPath ? null : project.ProjectPath,
+            migrationsDirectory: missingProjectPath ? project.MigrationsDirectory : null)
+            .Build();
+        var missingSetting = missingProjectPath ? "ProjectPath" : "MigrationsDirectory";
+        var act = async () => await host.RunMigrationsAsync<GeneratedMigrationDbContext>();
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage($"Не задан Ef:Contexts:GeneratedMigrationDbContext:{missingSetting}.");
+        await using var connection = new NpgsqlConnection(existingConnectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var databaseCommand = new NpgsqlCommand(
+            "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = @database)", connection);
+        databaseCommand.Parameters.AddWithValue("database", connectionSettings.Database!);
+        (await databaseCommand.ExecuteScalarAsync(TestContext.Current.CancellationToken)).Should().Be(databaseExists);
+        await using var historyCommand = new NpgsqlCommand(
+            "SELECT to_regclass('\"__EFMigrationsHistory\"') IS NOT NULL", connection);
+        (await historyCommand.ExecuteScalarAsync(TestContext.Current.CancellationToken)).Should().Be(false);
+    }
+
     private static IHost CreateHost(
         string connectionString,
         bool generateMigrations,

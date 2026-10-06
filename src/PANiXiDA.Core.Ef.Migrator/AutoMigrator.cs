@@ -58,19 +58,9 @@ public static class AutoMigrator
 
         var db = scope.ServiceProvider.GetRequiredService<TContext>();
 
-        if (applyMigrations)
-        {
-            var databaseCreator = db.GetService<IRelationalDatabaseCreator>();
-            if (!await databaseCreator.ExistsAsync())
-            {
-                await databaseCreator.CreateAsync();
-            }
-
-            await db.GetService<IHistoryRepository>().CreateIfNotExistsAsync();
-        }
-
         if (!generateMigrations)
         {
+            await InitializeMigrationHistoryAsync(db);
             await MigrationsApplier.ApplyPendingMigrationsAsync(db);
             return;
         }
@@ -84,6 +74,7 @@ public static class AutoMigrator
         {
             if (applyMigrations)
             {
+                await InitializeMigrationHistoryAsync(db);
                 await db.Database.MigrateAsync();
             }
 
@@ -106,6 +97,7 @@ public static class AutoMigrator
             return;
         }
 
+        await InitializeMigrationHistoryAsync(db);
         await MigrationsApplier.ApplyPendingMigrationsAsync(db);
 
         await MigrationsApplier.ApplyMigrationAsync(
@@ -113,6 +105,17 @@ public static class AutoMigrator
             difference: difference.UpOperations,
             migrationId: scaffoldedMigration.MigrationId,
             targetModel: difference.TargetModel);
+    }
+
+    private static async Task InitializeMigrationHistoryAsync(DbContext db)
+    {
+        var databaseCreator = db.GetService<IRelationalDatabaseCreator>();
+        if (!await databaseCreator.ExistsAsync())
+        {
+            await databaseCreator.CreateAsync();
+        }
+
+        await db.GetService<IHistoryRepository>().CreateIfNotExistsAsync();
     }
 
     private static ServiceProvider CreateDesignServiceProvider(DbContext db)
