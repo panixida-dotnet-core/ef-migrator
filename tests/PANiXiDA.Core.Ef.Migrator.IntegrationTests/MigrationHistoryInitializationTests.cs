@@ -1,9 +1,13 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 using Npgsql;
+
+using System.Data.Common;
 
 using PANiXiDA.Core.Ef.Migrator.IntegrationTests.TestInfrastructure;
 using PANiXiDA.Core.Ef.Migrator.IntegrationTests.TestModels;
@@ -128,6 +132,70 @@ public sealed class MigrationHistoryInitializationTests(PostgreSqlContainerFixtu
         await using var historyCommand = new NpgsqlCommand(
             "SELECT to_regclass('\"__EFMigrationsHistory\"') IS NOT NULL", connection);
         (await historyCommand.ExecuteScalarAsync(TestContext.Current.CancellationToken)).Should().Be(false);
+    }
+
+    [Fact(DisplayName = "Retries a transient history creation failure using the configured Npgsql strategy")]
+    public async Task RunMigrationsAsync_WhenHistoryCreationFailsTransiently_RetriesAndAppliesMigrations()
+    {
+        var connectionString = await fixture.CreateConnectionStringAsync();
+        var interceptor = new HistoryCreationFailureInterceptor(failureCount: 1);
+        using var host = CreateRetryingHost(connectionString, interceptor);
+
+        await host.RunMigrationsAsync<ExistingMigrationDbContext>();
+
+        interceptor.Attempts.Should().BeGreaterThan(1);
+        (await DatabaseAssert.HistoryRowsCountAsync(connectionString)).Should().Be(1);
+        (await DatabaseAssert.TableExistsAsync(connectionString, "existing_entities")).Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "Stops history creation after exhausting the configured Npgsql retry limit")]
+    public async Task RunMigrationsAsync_WhenHistoryCreationKeepsFailing_RespectsRetryLimit()
+    {
+        var connectionString = await fixture.CreateConnectionStringAsync();
+        var interceptor = new HistoryCreationFailureInterceptor(failureCount: int.MaxValue);
+        using var host = CreateRetryingHost(connectionString, interceptor);
+        var act = async () => await host.RunMigrationsAsync<ExistingMigrationDbContext>();
+
+        (await act.Should().ThrowAsync<RetryLimitExceededException>()).Which.InnerException
+            .Should().BeOfType<NpgsqlException>();
+        interceptor.Attempts.Should().Be(2);
+        (await DatabaseAssert.TableExistsAsync(connectionString, "__EFMigrationsHistory")).Should().BeFalse();
+        (await DatabaseAssert.TableExistsAsync(connectionString, "existing_entities")).Should().BeFalse();
+    }
+
+    private static IHost CreateRetryingHost(string connectionString, DbCommandInterceptor interceptor)
+    {
+        return TestHostBuilder.Create<ExistingMigrationDbContext>(connectionString, true, true)
+            .ConfigureServices(services => services.AddDbContext<ExistingMigrationDbContext>(options =>
+            {
+                options.UseNpgsql(connectionString, postgres =>
+                    postgres.EnableRetryOnFailure(1, TimeSpan.Zero, errorCodesToAdd: null));
+                options.AddInterceptors(interceptor);
+            }))
+            .Build();
+    }
+
+    private sealed class HistoryCreationFailureInterceptor(int failureCount) : DbCommandInterceptor
+    {
+        public int Attempts { get; private set; }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("CREATE TABLE IF NOT EXISTS \"__EFMigrationsHistory\"", StringComparison.Ordinal))
+            {
+                Attempts++;
+                if (Attempts <= failureCount)
+                {
+                    throw new NpgsqlException("Simulated transient history creation failure.", new TimeoutException());
+                }
+            }
+
+            return ValueTask.FromResult(result);
+        }
     }
 
     private static IHost CreateHost(
