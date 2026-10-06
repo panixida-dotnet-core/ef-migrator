@@ -1,5 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -29,6 +32,7 @@ public static class AutoMigrator
     /// When generation is enabled and the model differs from the last snapshot, a migration is saved to the configured folder.
     /// When applying is enabled, existing or newly created migrations are applied through the connection configured for
     /// the registered <typeparamref name="TContext"/>.
+    /// The configured migration history table is initialized before reading applied migrations when applying is enabled.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="host"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">
@@ -53,6 +57,17 @@ public static class AutoMigrator
         }
 
         var db = scope.ServiceProvider.GetRequiredService<TContext>();
+
+        if (applyMigrations)
+        {
+            var databaseCreator = db.GetService<IRelationalDatabaseCreator>();
+            if (!await databaseCreator.ExistsAsync())
+            {
+                await databaseCreator.CreateAsync();
+            }
+
+            await db.GetService<IHistoryRepository>().CreateIfNotExistsAsync();
+        }
 
         if (!generateMigrations)
         {
