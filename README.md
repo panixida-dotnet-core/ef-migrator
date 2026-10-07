@@ -23,6 +23,7 @@ This package is intentionally small: build the host once and call `RunMigrations
 - Detects differences between the current `DbContext` model and the latest model snapshot.
 - Generates migration files into a configured project directory.
 - Applies compiled pending migrations.
+- Initializes the configured migration history table before reading applied migrations.
 - Applies a newly generated migration in the same startup flow.
 - Processes multiple registered DbContexts sequentially without rebuilding the host.
 - Supports disabling generation and applying independently.
@@ -206,6 +207,9 @@ Example `appsettings.json`:
 - When generation is disabled and applying is enabled, only compiled pending migrations are applied.
 - When generation is enabled but there are no model differences, the package applies compiled migrations with EF Core `MigrateAsync()` if applying is enabled.
 - When generation and applying are both disabled, the invocation completes without migration work.
+- History initialization runs only when applying is enabled and respects the context's configured history table and schema.
+- Existing history tables are detected without DDL, respecting PostgreSQL `search_path` when no history schema is configured. Apply-only runs with no pending migrations require only read access to the existing history.
+- When model changes require generation, generation settings are validated and migration files are created before connecting to PostgreSQL or initializing its history table.
 - The generated migration ID is limited to 100 characters, including the timestamp prefix added by EF Core.
 - Each context migrations directory must point to a directory inside its configured project path.
 
