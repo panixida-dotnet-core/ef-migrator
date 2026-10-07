@@ -115,7 +115,18 @@ public static class AutoMigrator
             await databaseCreator.CreateAsync();
         }
 
-        await db.GetService<IHistoryRepository>().CreateIfNotExistsAsync();
+        var options = RelationalOptionsExtension.Extract(db.GetService<IDbContextOptions>());
+        var historyTable = db.GetService<ISqlGenerationHelper>().DelimitIdentifier(
+            options.MigrationsHistoryTableName ?? HistoryRepository.DefaultTableName,
+            options.MigrationsHistoryTableSchema);
+        var historyExists = await db.Database
+            .SqlQuery<bool>($"SELECT to_regclass({historyTable}) IS NOT NULL AS \"Value\"")
+            .SingleAsync();
+
+        if (!historyExists)
+        {
+            await db.GetService<IHistoryRepository>().CreateIfNotExistsAsync();
+        }
     }
 
     private static ServiceProvider CreateDesignServiceProvider(DbContext db)
